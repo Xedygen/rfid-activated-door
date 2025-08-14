@@ -19,6 +19,15 @@
 const UID_SHEET_NAME = "UIDs"; // The name of the sheet where authorized UIDs are stored.
 const LOG_SHEET_NAME = "Logs"; // The name of the sheet where access logs will be written.
 
+// Map specific ADMIN UIDs to background colors for the log.
+// Use standard hex color codes.
+const ADMIN_LOG_COLORS = {
+  "7B:69:F8:11": "#d9ead3", // Light Green
+  "7B:16:01:11": "#cfe2f3"  // Light Blue
+  // Add more ADMIN UID -> color mappings here
+};
+
+
 /**
  * Handles HTTP POST requests sent from the ESP32.
  * This is the main entry point for the script.
@@ -28,20 +37,16 @@ const LOG_SHEET_NAME = "Logs"; // The name of the sheet where access logs will b
 function doPost(e) {
   let response;
   try {
-    // Parse the JSON payload from the ESP32's request.
     const data = JSON.parse(e.postData.contents);
 
-    // Check for the 'operation' field to determine the required action.
     if (data.operation === "LEARN") {
       response = handleLearnOperation(data);
     } else if (data.operation === "LOG") {
       response = handleLogOperation(data);
     } else {
-      // If the operation is unknown, return an error.
       throw new Error("Invalid operation specified.");
     }
   } catch (error) {
-    // Catch any errors (e.g., JSON parsing, invalid operation) and create an error response.
     Logger.log(`Error in doPost: ${error.toString()}`);
     response = {
       status: "error",
@@ -49,20 +54,17 @@ function doPost(e) {
     };
   }
 
-  // Return the response as a JSON string.
   return ContentService.createTextOutput(JSON.stringify(response))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Handles the 'LEARN' operation. Adds a new UID to the UIDs sheet.
- * This function is now more robust with LockService and better error checking.
+ * Handles the 'LEARN' operation. Adds a new UID and a label to the UIDs sheet.
  * @param {Object} data - The parsed JSON data from the request.
  * @returns {Object} A response object.
  */
 function handleLearnOperation(data) {
   const lock = LockService.getScriptLock();
-  // Wait up to 20 seconds for other processes to finish.
   lock.waitLock(20000); 
   
   try {
@@ -75,9 +77,14 @@ function handleLearnOperation(data) {
       throw new Error(`Sheet with name "${UID_SHEET_NAME}" not found.`);
     }
 
-    // Check if the UID already exists to avoid duplicates.
-    // Get the last row, or 1 if the sheet is empty.
     const lastRow = uidSheet.getLastRow();
+
+    // Add headers if the sheet is empty
+    if (lastRow === 0) {
+      uidSheet.appendRow(["Card UID", "Card Label"]);
+    }
+    
+    // Check if the UID already exists to avoid duplicates.
     const checkRange = lastRow > 0 ? uidSheet.getRange(1, 1, lastRow, 1) : null;
     let isDuplicate = false;
 
@@ -94,9 +101,13 @@ function handleLearnOperation(data) {
       };
     }
 
-    // If not a duplicate, append the new UID to the sheet.
-    uidSheet.appendRow([data.uid]);
-    Logger.log(`Successfully appended new UID: ${data.uid}`);
+    // Create a label for the new guest card
+    const guestNumber = lastRow === 0 ? 1 : lastRow; // If headers were just added, this is guest 1
+    const cardLabel = `Guest Card ${guestNumber}`;
+
+    // Append the new UID and its label
+    uidSheet.appendRow([data.uid, cardLabel]);
+    Logger.log(`Successfully appended new UID: ${data.uid} with label: ${cardLabel}`);
     
     return {
       status: "success",
@@ -105,22 +116,19 @@ function handleLearnOperation(data) {
 
   } catch (error) {
     Logger.log(`Error in handleLearnOperation: ${error.toString()}`);
-    // Re-throw the error to be caught by the main doPost catch block
     throw error;
   } finally {
-    // ALWAYS release the lock, even if there was an error.
     lock.releaseLock();
   }
 }
 
 
 /**
- * Handles the 'LOG' operation. Appends an access log entry to the Logs sheet.
+ * Handles the 'LOG' operation. Appends an access log entry and color-codes admin entries.
  * @param {Object} data - The parsed JSON data from the request.
  * @returns {Object} A response object.
  */
 function handleLogOperation(data) {
-  // Validate that all required fields are present.
   if (!data.timestamp || !data.uid || !data.location || !data.role) {
     throw new Error("LOG operation requires 'timestamp', 'uid', 'location', and 'role' fields.");
   }
@@ -139,6 +147,13 @@ function handleLogOperation(data) {
 
   // Append the new log entry as a row.
   logSheet.appendRow([data.timestamp, data.uid, data.location, data.role, accessStatus]);
+
+  // If the role was ADMIN, color the row based on the UID
+  if (data.role === "ADMIN" && ADMIN_LOG_COLORS[data.uid]) {
+    const newRow = logSheet.getLastRow();
+    const color = ADMIN_LOG_COLORS[data.uid];
+    logSheet.getRange(newRow, 1, 1, logSheet.getLastColumn()).setBackground(color);
+  }
 
   return {
     status: "success",
