@@ -101,7 +101,7 @@ void httpPostTask(void *pvParameters) {
 // --- SETUP ---
 void setup() {
   pinMode(MODE_BUTTON, INPUT_PULLUP);
-  pinMode(DOOR_BUTTON, INPUT_PULLUP); // Initialize the new door button pin
+  pinMode(DOOR_BUTTON, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, HIGH); 
   Serial.begin(115200);
@@ -137,6 +137,8 @@ void setup() {
 
 // --- CORE LOGIC & HANDLERS ---
 
+// *** THIS FUNCTION HAS BEEN UPDATED ***
+// Fetches UIDs from the two-column CSV and parses correctly.
 void fetchUIDsFromSheet() {
   learnedCount = 0;
   if (WiFi.status() != WL_CONNECTED) {
@@ -158,11 +160,27 @@ void fetchUIDsFromSheet() {
       String line = (nl > idx ? csv.substring(idx, nl) : csv.substring(idx));
       line.trim();
       idx = (nl < 0 ? csv.length() : nl + 1);
+
       if (line.length() > 0) {
-        learnedUIDs[learnedCount++] = line;
+        String uid;
+        int commaIndex = line.indexOf(',');
+        
+        if (commaIndex != -1) {
+          // Comma found, extract the part before it as the UID
+          uid = line.substring(0, commaIndex);
+        } else {
+          // No comma, assume the whole line is the UID (for backward compatibility)
+          uid = line;
+        }
+        uid.trim(); // Clean up any extra spaces
+
+        // Add to the array if it's a valid-looking UID (and not the header)
+        if (uid.length() > 1 && !uid.equalsIgnoreCase("Card UID")) {
+            learnedUIDs[learnedCount++] = uid;
+        }
       }
     }
-    Serial.printf("Successfully fetched %d UIDs from sheet.\n", learnedCount);
+    Serial.printf("Successfully fetched and parsed %d learned UIDs.\n", learnedCount);
   } else {
     Serial.println("Failed to fetch UID list. HTTP Code: " + String(httpCode));
   }
