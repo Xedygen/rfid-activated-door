@@ -13,18 +13,16 @@ This project creates a robust and flexible RFID access control system using an E
     - **MANUAL_OPEN:** A dedicated pushbutton to open the door without a card.
 - **On-the-Fly UID Learning:** A dedicated "Learn Mode" allows for adding new user cards without reprogramming the device.
 - **Asynchronous & Non-Blocking:** Uses the ESP32's dual cores to handle network requests without slowing down card reading, ensuring a responsive user experience.
-- **Safe Power Design:** Instructions for isolated power to prevent common issues like relay-induced reboots.
 
 ---
 
-## Hardware Requirements
+## Hardware Requirements (Final Setup)
 - 1 x ESP32 Development Board (DOIT DEVKIT V1 or similar)
 - 2 x MFRC522 RFID Readers with cards/fobs
-- 1 x 5V Single-Channel Relay Module (opto-isolated with a `JD-VCC` jumper is highly recommended)
+- 1 x 12V Single-Channel Relay Module (3-pin: VCC, GND, IN)
 - 2 x Momentary Pushbuttons
 - 1 x 12V DC Power Source (e.g., AC-to-DC transformer/adapter)
-- 1 x LM2596 Buck (Step-Down) Converter to create a 3.3V supply for the ESP32.
-- 1 x 12V-to-5V Buck Converter (if using an opto-isolated 5V relay).
+- 1 x LM2596 Buck (Step-Down) Converter (to create a 3.3V supply for the ESP32)
 - 1 x 12V Electronic Door Lock
 - Breadboard and Jumper Wires
 
@@ -32,7 +30,7 @@ This project creates a robust and flexible RFID access control system using an E
 
 ## Pin Configuration & Wiring
 
-This setup uses an opto-isolated relay for maximum stability.
+### Logic and Sensor Wiring
 
 | ESP32 Pin | Component                | Component Pin | Purpose                  |
 | :-------- | :----------------------- | :------------ | :----------------------- |
@@ -46,18 +44,18 @@ This setup uses an opto-isolated relay for maximum stability.
 | **3V3** | RFID Reader 1 & 2        | 3.3V          | Power for RFID Readers   |
 | **GND** | RFID Reader 1 & 2        | GND           | Ground for RFID Readers  |
 | **GPIO 13** | Relay Module             | IN            | Relay Trigger Signal     |
-| **3V3** | Relay Module             | VCC           | Relay Logic Power        |
 | **GPIO 12** | Mode Button              | Leg 1         | Switch to Learn Mode     |
 | **GND** | Mode Button              | Leg 2         | Ground for Mode Button   |
 | **GPIO 27** | Door Open Button         | Leg 1         | Manual Door Open         |
 | **GND** | Door Open Button         | Leg 2         | Ground for Door Button   |
 
 ### Power Wiring Diagram
-- **12V Source -> LM2596 IN:** Power for the ESP32's converter.
-- **LM2596 OUT (set to 3.3V) -> ESP32 3V3 & GND:** Powers the ESP32.
-- **12V Source -> 12V-to-5V Converter IN:** Power for the relay coil.
-- **12V-to-5V Converter OUT -> Relay JD-VCC & GND:** Powers the relay coil. (Remember to remove the jumper between VCC and JD-VCC).
-- **12V Source -> Relay COM & Door Lock:** Powers the door lock circuit.
+
+1.  **12V Source -> LM2596 IN:** The 12V from the transformer powers the input of the buck converter.
+2.  **LM2596 OUT (Calibrated to 3.3V) -> ESP32 3V3 & GND:** The converter's output provides clean 3.3V power directly to the ESP32.
+3.  **12V Source -> Relay VCC & GND:** The 12V from the transformer also powers the relay module directly.
+4.  **12V Source -> Relay COM & Door Lock:** The 12V from the transformer is switched by the relay to power the door lock.
+5.  **Common Ground:** All ground connections (Transformer, LM2596, ESP32, Relay) must be tied together.
 
 ---
 
@@ -82,7 +80,7 @@ This setup uses an opto-isolated relay for maximum stability.
 1.  **Create Sheet:** Create a new Google Sheet.
 2.  **Create Tabs:** Rename the default sheet to **`UIDs`**. Create a new sheet and name it **`Logs`**. The names must be exact.
 3.  **Open Apps Script:** Go to `Extensions > Apps Script`.
-4.  **Paste Script:** Paste the provided Google Apps Script code into the editor.
+4.  **Paste Script:** Paste the provided Google Apps Script code into the editor. The file can be named `Code.gs` or `Code.js`.
 5.  **Deploy:**
     - Click **Deploy > New deployment**.
     - For "Select type," choose **Web app**.
@@ -115,6 +113,6 @@ This setup uses an opto-isolated relay for maximum stability.
 ## Troubleshooting
 - **ESP32 not connecting to WiFi:** Double-check your SSID/Password. Ensure your network is 2.4 GHz.
 - **Code won't upload / COM port not found:** You need to install the **CP2102 driver** for your ESP32 board.
-- **System reboots when relay clicks:** This is a power issue. Ensure you are using the opto-isolated wiring method with the `JD-VCC` jumper removed and a separate, adequate power supply for the relay coil.
 - **UIDs not saving:** The most common cause is the Google Apps Script not being deployed with "Who has access" set to **"Anyone"**. Re-deploy the script and verify the setting.
+- **System reboots when relay clicks:** This is a power issue caused by voltage sag. Your current setup (sharing a 12V source between the relay and the ESP32's converter) can cause this. If it becomes a problem, the most robust solution is to use an **opto-isolated relay module** (with a `JD-VCC` jumper) and a separate 5V power supply for the relay coil, as discussed previously.
 
